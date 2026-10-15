@@ -1,15 +1,48 @@
-# SiP Simulator – 1차 구현
+# SiP Simulator – HBM/Stack별 결과 비교
+
+## 데이터 폴더 규칙
+
+SIP_DATA_ROOT 바로 아래에 HBM 세대와 Stack 수별 시뮬레이션 폴더를 둡니다.
+
+```
+SIP_DATA_ROOT/
+  SIP_A_HBM3E_12H_POR/
+    *.txt
+    *.py
+    *.inp
+    *.odb
+  SIP_A_HBM4_12H/
+    *.txt
+    *.py
+    *.inp
+    *.odb
+  SIP_A_HBM4_8H/
+    *.txt
+    *.py
+    *.inp
+    *.odb
+```
+
+폴더명 규칙은 <SiP Product>_<HBM Gen>_<Stack Count>[_POR]입니다. 제품명에 밑줄(_)이 있어도 _HBM... 토큰을 기준으로 분리합니다.
+
+- _POR로 끝나는 폴더만 POR로 표시하며, POR가 있으면 HBM/Stack 선택 콤보박스의 기본값으로 선택합니다.
+- HBM 세대와 Stack 수가 다르면 별개의 해석 조건입니다. 각 폴더의 TXT, PY, INP, ODB 파일을 독립적으로 사용합니다.
+- POR가 아닌 폴더도 선택·비교할 수 있습니다.
+- 필수 확장자 .txt/.py/.inp/.odb 중 하나라도 없으면 해당 조건은 사용할 수 없고 관리자 안내를 표시합니다.
+- 폴더명에서 추출한 HBM 세대와 .py의 HBM_Gen이 다르면 화면에 경고를 표시합니다. .py는 실행하지 않고 정적으로 분석합니다.
 
 ## 포함 기능
-- SiP 폴더 바로 아래에 이름이 정확히 `POR`인 대표 결과 폴더 검증
-- POR 내부의 `.txt` 결과표 파싱 및 마지막 `_숫자` 기준 Part 그룹화
-- metric을 선택해 X=접미 숫자, Y=값인 XY plot 표시
-- 여러 제품의 동일 그룹/metric을 한 그래프에 비교하고 CSV로 내보내기
-- FastAPI NAS/UNC 경로 연동 API
-- POR 내부 `.py`의 `HBM_Gen` 변수 정적 추출 및 제품명/HBM 세대 검색·표시
-- `.py` 파일을 실행하지 않고 변수 할당문을 정적으로 분석
+
+- SiP Product 콤보박스와 HBM/Stack 조건 콤보박스
+- 선택한 조건 폴더의 TXT 결과 파싱 및 마지막 _숫자 기준 Part 그룹화
+- metric 선택, X=접미 숫자/Y=metric 값 XY plot
+- 여러 조건의 결과를 한 그래프에서 비교하고 CSV로 내보내기
+- 그래프 아래에 비교 조건별 .py 입력 파라미터를 나란히 표시
+- FastAPI를 통한 NAS/UNC 경로 연동
+- .inp 파일 존재 확인 및 .odb의 U3 추출 상태 표시(실제 mesh 렌더링 및 ODB 추출은 후속 구현)
 
 ## 실행
+
 Python 3.10+ 권장.
 
 ```powershell
@@ -21,28 +54,17 @@ $env:SIP_DATA_ROOT="\\NAS\SiPData"
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-NAS 구조:
-```
-SIP_DATA_ROOT/
-  Product_A/
-    POR/
-      *.txt
-      *.py
-      *.inp
-      *.odb
-```
+## API 요약
 
-개발 시 `SIP_DATA_ROOT`를 샘플 폴더에 지정할 수 있습니다.
-
-## 대표 결과 검증
-- 각 제품 폴더 바로 아래에서 정확히 `POR`라는 이름의 폴더만 인정합니다.
-- `por`, `POR_old`, `PRE_POR`는 인정하지 않습니다.
-- 필수 확장자 `.txt`, `.py`, `.inp`, `.odb` 파일이 모두 하나 이상 있어야 결과를 노출합니다.
-- 조건 미충족 시: `관리자 (jeeh.jung@samsung.com)에게 문의하세요.`
+- GET /api/products: 폴더명에서 추출한 SiP 제품/HBM/Stack/POR 조건 목록
+- GET /api/products/{variant_id}/results: 해당 조건 폴더의 TXT 결과 및 PY 파라미터
+- GET /api/products/{variant_id}/parameters: 해당 조건 폴더의 PY 파라미터
+- GET /api/products/{variant_id}/file-status: INP/ODB 파일 상태
 
 ## 파일별 역할 / 제한
+
 - TXT: 결과 테이블 및 XY 비교
-- PY: 정적 파싱만 수행하며 임의 스크립트를 실행하지 않습니다. `HBM_Gen = 'HBM3E'` 같은 할당문에서 HBM 세대를 읽어 제품 목록과 선택된 제품 정보에 표시합니다. 변수 누락 또는 여러 `.py` 파일에서 서로 다른 값이 발견되면 `미지정`으로 표시합니다.
+- PY: 정적 파싱만 수행하며 임의 스크립트를 실행하지 않습니다.
 - INP: 현재는 파일의 존재/목록만 확인합니다. 실제 3D mesh 변환/렌더링은 후속 구현입니다.
 - ODB: 현재는 파일의 존재/목록만 확인합니다. Abaqus Python/OdbAccess 기반 U3 추출은 후속 구현입니다.
 - 이 버전은 Abaqus 해석을 실행하지 않습니다.

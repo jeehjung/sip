@@ -5,134 +5,130 @@
 <title>SiP Simulator</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
-:root{font-family:Inter,"Malgun Gothic",sans-serif;color:#172033;background:#f4f6fa}
-*{box-sizing:border-box}body{margin:0}header{background:#15243b;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
-h1{font-size:21px;margin:0}main{padding:18px;display:grid;grid-template-columns:minmax(320px,1fr) minmax(380px,1.1fr);gap:16px}
-.panel{background:white;border:1px solid #dfe5ef;border-radius:12px;padding:16px;min-width:0}
-h2{font-size:16px;margin:0 0 12px}.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-input,select,button{font:inherit;border:1px solid #ccd5e3;border-radius:7px;padding:8px;background:white;color:#172033}
-input[type=text]{min-width:250px;flex:1}button{cursor:pointer}button.primary{background:#245bd6;color:white;border-color:#245bd6}
-.product-list{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}.product-chip{padding:7px 10px;border-radius:999px;background:#edf1f8;border:1px solid #d7deeb;cursor:pointer}.product-chip.active{background:#dce8ff;border-color:#7fa4f4}
-.status{font-size:12px;color:#68758a;margin:8px 0}.error{color:#b42318;background:#fff0ef;border-radius:8px;padding:12px;margin:8px 0}
-.result-card{border:1px solid #e0e5ed;border-radius:9px;padding:12px;margin:10px 0}.result-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.result-head strong{overflow-wrap:anywhere}
-.metric-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.metric-row select{max-width:220px}.add{font-weight:bold;color:white;background:#16794b;border:0;border-radius:6px;min-width:34px}
-.compare-item{padding:9px;border-bottom:1px solid #e5e9f0;display:flex;justify-content:space-between;gap:8px}.compare-item span{overflow-wrap:anywhere}
-.chart-wrap{height:320px;position:relative;margin-top:14px}.empty{color:#77839a;padding:28px 8px;text-align:center}
-.file-pills{display:flex;gap:6px;flex-wrap:wrap}.pill{background:#eef2f7;padding:5px 8px;border-radius:6px;font-size:12px}
-@media(max-width:900px){main{grid-template-columns:1fr;padding:10px}header{padding:14px}.chart-wrap{height:280px}}
+:root{font-family:Inter,"Malgun Gothic",sans-serif;color:#172033;background:#f4f6fa}*{box-sizing:border-box}body{margin:0}
+header{background:#15243b;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}
+main{padding:18px;display:grid;grid-template-columns:minmax(320px,1fr) minmax(380px,1.1fr);gap:16px;max-width:1600px;margin:auto}
+.panel{background:white;border:1px solid #dfe5ef;border-radius:12px;padding:16px;min-width:0}h2{font-size:16px;margin:0 0 12px}
+.toolbar,.selector-grid{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}.selector-grid{display:grid;grid-template-columns:1fr 1.25fr}
+label{font-size:12px;font-weight:700;color:#4b5870}.field{display:flex;flex-direction:column;gap:6px;min-width:0}input,select,button{font:inherit;border:1px solid #ccd5e3;border-radius:7px;padding:9px;background:white;color:#172033}input{flex:1;min-width:180px}select{width:100%;min-width:0}button{cursor:pointer}button.primary{background:#245bd6;color:white;border-color:#245bd6}
+.meta{font-size:12px;color:#68758a;margin:8px 0;line-height:1.5}.pills{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.pill{background:#eef2f7;padding:5px 8px;border-radius:6px;font-size:11px;color:#4b5870}
+.result{border:1px solid #e0e5ed;border-radius:9px;padding:12px;margin:10px 0}.result-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.result-title strong{overflow-wrap:anywhere;font-size:14px}.filename{font-size:11px;color:#758198;overflow-wrap:anywhere}
+.metric{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.metric select{max-width:230px;flex:1}.plus{min-width:34px;background:#16794b;color:white;border:0;font-weight:bold;font-size:18px;padding:5px}
+.compare-item{padding:10px 2px;border-bottom:1px solid #e5e9f0;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}.details{color:#758198;font-size:11px;margin-top:4px;overflow-wrap:anywhere}.remove{padding:3px 9px;color:#6b7280;font-size:19px}
+.chartbox{height:320px;position:relative;margin-top:14px}.empty{color:#77839a;padding:26px 8px;text-align:center;font-size:13px}.error{color:#b42318;background:#fff0ef;border-radius:8px;padding:12px;margin:8px 0}.notice{font-size:12px;background:#fff7e6;border:1px solid #f4d79b;color:#865d13;padding:10px;border-radius:8px;margin:8px 0 14px}
+.parameter-panel{margin-top:20px;border-top:1px solid #e5e9f0;padding-top:16px}.parameter-panel h3{font-size:14px;margin:0 0 8px}.table-scroll{overflow:auto;max-width:100%}.parameter-table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}.parameter-table th,.parameter-table td{border:1px solid #e0e5ed;padding:8px 10px;text-align:left}.parameter-table th{background:#f1f5f9}.parameter-table td:first-child{font-weight:600;background:#f8fafc}
+@media(max-width:920px){main{grid-template-columns:1fr;padding:10px}header{padding:14px}.chartbox{height:280px}}@media(max-width:520px){.selector-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<header><h1>SiP Simulator</h1><span id="apiState">API 연결 전</span></header>
+<header><h1>SiP Simulator</h1><span id="apiState" style="font-size:12px;color:#b8f3d3">API 연결 전</span></header>
 <main>
 <section class="panel">
   <h2>제품 및 결과 선택</h2>
   <div class="toolbar"><input id="apiUrl" type="text" value="http://localhost:8000" aria-label="API 주소"><button id="connect" class="primary">연결</button></div>
-  <div class="toolbar"><input id="productSearch" type="text" placeholder="SiP 제품명 검색" aria-label="SiP 제품명 검색"><select id="hbmFilter" aria-label="HBM 세대 필터"><option value="">전체 HBM 세대</option></select></div>
-  <div id="products" class="product-list"></div>
-  <div id="selectedProduct" class="status">API 연결 후 제품을 선택하세요.</div>
-  <div id="fileStatus" class="file-pills"></div>
-  <div id="results"><div class="empty">제품을 선택하면 TXT 결과 그룹이 표시됩니다.</div></div>
+  <div class="selector-grid">
+    <div class="field"><label for="productSelect">SiP Product</label><select id="productSelect" disabled><option>API 연결 후 선택</option></select></div>
+    <div class="field"><label for="variantSelect">HBM / Stack (POR 표시)</label><select id="variantSelect" disabled><option>제품을 먼저 선택하세요</option></select></div>
+  </div>
+  <div id="selectedInfo" class="meta">API 연결 후 제품과 HBM 조건을 선택하세요.</div>
+  <div id="files" class="pills"></div><div id="results"><div class="empty">선택한 조건의 TXT 결과가 여기에 표시됩니다.</div></div>
 </section>
 <section class="panel">
   <h2>결과 비교</h2>
-  <div class="status">같은 그룹·같은 metric은 하나의 XY 그래프에 겹쳐 표시됩니다. X축은 Part 접미 숫자입니다.</div>
-  <div id="compareList"><div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div></div>
-  <div class="toolbar"><button id="clear">비교 목록 비우기</button><button id="export">CSV 내보내기</button></div>
-  <div class="chart-wrap"><canvas id="chart"></canvas></div>
-  <div id="chartNote" class="status"></div>
+  <p class="meta">비교 식별 기준은 SiP Product + HBM + Stack + 폴더(POR 여부) + 결과 그룹 + metric입니다.</p>
+  <div id="compare"><div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div></div>
+  <div class="toolbar" style="margin-top:12px"><button id="clear">비교 목록 비우기</button><button id="csv">CSV 내보내기</button></div>
+  <div class="chartbox"><canvas id="plot"></canvas></div><div id="chartNote" class="meta"></div>
+  <div class="parameter-panel"><h3>비교 결과의 Input Parameters</h3><p class="meta">각 비교 폴더의 .py 변수값을 별도 열로 표시합니다. 동일 SiP라도 HBM/Stack 조건이 다르면 별도 열입니다.</p><div id="parameterTable"><div class="empty">비교 결과를 추가하면 Input Parameter 비교표가 표시됩니다.</div></div></div>
 </section>
 </main>
 <script>
-const ADMIN='관리자 (jeeh.jung@samsung.com)에게 문의하세요.';
-let apiBase='http://localhost:8000', products=[], activeProduct=null, compare=[], chart=null;
-const $=id=>document.getElementById(id);
-const palette=['#245bd6','#d14b36','#14845c','#8a4dcc','#d28a14','#138c9c','#b33d80','#667085'];
+const ADMIN='관리자 (jeeh.jung@samsung.com)',$=id=>document.getElementById(id);
+let apiBase='http://localhost:8000',variants=[],selectedProduct='',selectedVariant='',activeData=null,comparison=[],chart=null;
+const colors=['#245bd6','#d14b36','#14845c','#8a4dcc','#d28a14','#138c9c','#b33d80','#667085'];
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function api(path){const r=await fetch(apiBase+path);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||'API 요청 실패');return d;}
+function productIds(){return [...new Set(variants.map(v=>v.product_id))].sort();}
+function variantsForProduct(){return variants.filter(v=>v.product_id===selectedProduct);}
+function renderSelectors(){
+ const ids=productIds();$('productSelect').innerHTML=ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');$('productSelect').disabled=!ids.length;
+ if(!ids.includes(selectedProduct))selectedProduct=ids[0]||'';
+ $('productSelect').value=selectedProduct;
+ const options=variantsForProduct();
+ if(!options.some(v=>v.variant_id===selectedVariant))selectedVariant=(options.find(v=>v.is_por)||options[0])?.variant_id||'';
+ $('variantSelect').innerHTML=options.map(v=>'<option value="'+esc(v.variant_id)+'">'+esc(v.hbm_gen)+' · '+esc(v.stack)+(v.is_por?' · POR':'')+'</option>').join('')||'<option value="">사용 가능한 조건 없음</option>';
+ $('variantSelect').disabled=!options.length;$('variantSelect').value=selectedVariant;
+}
 async function connect(){
- apiBase=$('apiUrl').value.trim().replace(/\/+$/,'');
- $('apiState').textContent='연결 중…';
- try{const d=await api('/api/products');products=d.products||[];$('apiState').textContent='API 연결됨';renderProducts();}
- catch(e){$('apiState').textContent='연결 실패';$('products').innerHTML='<div class="error">'+esc(e.message)+'</div>';}
+ apiBase=$('apiUrl').value.trim().replace(/\/+$/,'');$('apiState').textContent='연결 중…';
+ try{const d=await api('/api/products');variants=d.products||[];$('apiState').textContent='API 연결됨';renderSelectors();await loadVariant();}
+ catch(e){$('apiState').textContent='연결 실패';$('selectedInfo').innerHTML='<div class="error">'+esc(e.message||ADMIN)+'</div>';}
 }
-function renderProducts(){
- const currentGen=$('hbmFilter').value;
- const generations=[...new Set(products.filter(p=>p.available&&p.hbm_gen).map(p=>p.hbm_gen))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
- const hasUnspecified=products.some(p=>!p.hbm_gen);
- $('hbmFilter').innerHTML='<option value="">전체 HBM 세대</option>'+generations.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join('')+(hasUnspecified?'<option value="__UNSPECIFIED__">미지정</option>':'');
- if([...generations,'','__UNSPECIFIED__'].includes(currentGen)) $('hbmFilter').value=currentGen;
- const query=$('productSearch').value.trim().toLowerCase();
- const filtered=products.filter(p=>{
-   const matchesName=p.product_id.toLowerCase().includes(query);
-   const matchesGen=!$('hbmFilter').value||($('hbmFilter').value==='__UNSPECIFIED__'?!p.hbm_gen:p.hbm_gen===$('hbmFilter').value);
-   return matchesName&&matchesGen;
- });
- if(activeProduct&&!filtered.some(p=>p.product_id===activeProduct)){
-   activeProduct=null;
-   $('selectedProduct').textContent='검색 조건에 맞는 제품을 선택하세요.';
-   $('fileStatus').innerHTML='';
-   $('results').innerHTML='<div class="empty">제품을 선택하면 TXT 결과 그룹이 표시됩니다.</div>';
- }
- $('products').innerHTML=filtered.map(p=>'<button class="product-chip '+(p.product_id===activeProduct?'active':'')+'" data-id="'+esc(p.product_id)+'">'+esc(p.product_id)+' · '+esc(p.hbm_gen||'HBM 세대 미지정')+'</button>').join('')||'<div class="empty">검색 조건에 맞는 제품이 없습니다.</div>';
- document.querySelectorAll('.product-chip').forEach(b=>b.onclick=()=>loadProduct(b.dataset.id));
+function flatParameters(parameterFiles){
+ const out={};
+ for(const file of parameterFiles||[])for(const p of file.parameters||[]){let value=String(p.value??'').trim();if(value.length>=2&&((value[0]==="'"&&value.at(-1)==="'")||(value[0]==='"'&&value.at(-1)==='"')))value=value.slice(1,-1);out[p.name]=value;}
+ return out;
 }
-async function loadProduct(id){
- activeProduct=id;renderProducts();const p=products.find(x=>x.product_id===id);
- $('selectedProduct').textContent=id+' · HBM 세대: '+(p?.hbm_gen||'미지정');
- if(!p?.available){$('results').innerHTML='<div class="error">'+esc(p?.message||ADMIN)+'</div><div class="status">'+esc(p?.reason||'')+'</div>';$('fileStatus').innerHTML='';return;}
+async function loadVariant(){
+ const v=variants.find(item=>item.variant_id===selectedVariant);
+ activeData=null;
+ if(!v){$('selectedInfo').textContent='선택 가능한 HBM 조건이 없습니다.';$('files').innerHTML='';$('results').innerHTML='<div class="empty">조건 폴더를 찾을 수 없습니다.</div>';return;}
+ if(!v.available){$('selectedInfo').innerHTML='<div class="error">'+esc(v.message||ADMIN)+'<div class="meta">'+esc(v.reason||'')+'</div></div>';$('files').innerHTML='';$('results').innerHTML='<div class="empty">필수 파일이 없어 결과를 표시할 수 없습니다.</div>';return;}
+ $('selectedInfo').textContent=v.product_id+' · '+v.hbm_gen+' · '+v.stack+(v.is_por?' · POR':'')+' · '+v.variant_id+(v.hbm_warning?' · 경고: '+v.hbm_warning:'');
  try{
- const d=await api('/api/products/'+encodeURIComponent(id)+'/results');
- $('fileStatus').innerHTML=Object.entries(d.files).map(([k,v])=>'<span class="pill">.'+esc(k)+' '+v.length+'개</span>').join('');
- renderResults(d);
- }catch(e){$('results').innerHTML='<div class="error">'+esc(e.message)+'</div>';}
+  const d=await api('/api/products/'+encodeURIComponent(v.variant_id)+'/results');
+  activeData={...d,parameters:flatParameters(d.parameters)};
+  $('files').innerHTML=Object.entries(d.files||{}).map(([k,arr])=>'<span class="pill">.'+esc(k)+' '+arr.length+'개</span>').join('');
+  renderResults(activeData);
+ }catch(e){$('results').innerHTML='<div class="error">'+esc(e.message||ADMIN)+'</div>';}
 }
 function renderResults(data){
  const cards=[];
  for(const file of data.results||[])for(const g of file.groups||[]){
   if(!g.points?.length)continue;
-  const metricOptions=g.metrics.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
-  cards.push('<div class="result-card"><div class="result-head"><strong>'+esc(g.group_name)+'</strong><span class="status">'+esc(file.file_name)+' · '+g.points.length+' points</span></div>'+
-    (g.warnings||[]).map(w=>'<div class="status">'+esc(w)+'</div>').join('')+
-    '<div class="metric-row"><label>Y축 metric</label><select class="metric-select">'+metricOptions+'</select><button class="add" title="비교에 추가" data-file="'+esc(file.file_name)+'" data-group="'+esc(g.group_name)+'">+</button></div>'+
-    '<div class="status">X: 접미 숫자 · 범위 '+g.points[0].x+'–'+g.points[g.points.length-1].x+'</div>'+
-    '<script type="application/json" class="group-data">'+JSON.stringify(g).replace(/</g,'\\u003c')+'</scr'+'ipt></div>');
+  const metrics=g.metrics||[];
+  cards.push('<div class="result"><div class="result-title"><strong>'+esc(g.group_name)+'</strong><span class="filename">'+esc(file.file_name)+' · '+g.points.length+' points</span></div>'+
+   (g.warnings||[]).map(w=>'<div class="meta">'+esc(w)+'</div>').join('')+
+   '<div class="metric"><label>Y축 metric</label><select class="metric-select">'+metrics.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('')+'</select><button class="plus" data-add>+</button></div><div class="meta">X축: Part 접미 숫자 · 범위 '+g.points[0].x+'–'+g.points[g.points.length-1].x+'</div></div>');
  }
  $('results').innerHTML=cards.length?cards.join(''):'<div class="empty">표시할 수 있는 숫자 접미 그룹이 없습니다.</div>';
- document.querySelectorAll('.result-card .add').forEach(btn=>btn.onclick=()=>{
-   const card=btn.closest('.result-card'),g=JSON.parse(card.querySelector('.group-data').textContent),metric=card.querySelector('.metric-select').value;
-   const key=[data.product_id,data.por_id,btn.dataset.file,g.group_name,metric].join('|');
-   if(!compare.some(c=>c.key===key))compare.push({key,product:data.product_id,por:data.por_id,file:btn.dataset.file,group:g,metric});
-   renderCompare();
- });
+ let index=0;
+ for(const file of data.results||[])for(const g of file.groups||[]){if(!g.points?.length)continue;const card=$('results').querySelectorAll('.result')[index++];card.querySelector('[data-add]').onclick=()=>addComparison(data,file,g,card.querySelector('.metric-select').value);}
 }
-function renderCompare(){
- $('compareList').innerHTML=compare.length?compare.map((c,i)=>'<div class="compare-item"><span><strong>'+esc(c.product)+'</strong> · '+esc(c.group.group_name)+' · '+esc(c.metric)+'<div class="status">'+esc(c.file)+'</div></span><button data-remove="'+i+'" aria-label="비교에서 제거">×</button></div>').join(''):'<div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div>';
- document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{compare.splice(Number(b.dataset.remove),1);renderCompare();});
- drawChart();
+function addComparison(data,file,g,metric){
+ const key=[data.variant_id,file.file_name,g.group_name,metric].join('|');
+ if(comparison.some(c=>c.key===key))return;
+ comparison.push({key,product:data.product_id,variant:data.variant_id,hbm:data.hbm_gen,stack:data.stack,por:data.is_por,file:file.file_name,group:g,metric,parameters:data.parameters||{}});
+ renderComparison();
 }
-function drawChart(){
- if(chart){chart.destroy();chart=null;}
- const canvas=$('chart'), note=$('chartNote');
- if(!compare.length){note.textContent='';return;}
- const datasets=[];
- compare.forEach(c=>{
-   const values=c.group.points.map(p=>({x:p.x,y:p.values_numeric?.[c.metric]??(c.metric in p.values?Number(p.values[c.metric]):null)})).filter(p=>p.y!==null&&Number.isFinite(p.y));
-   datasets.push({label:c.product+' · '+c.group.group_name+' · '+c.metric,data:values,showLine:true,tension:0,pointRadius:3,borderColor:palette[datasets.length%palette.length],backgroundColor:palette[datasets.length%palette.length]});
- });
- chart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,parsing:false,scales:{x:{type:'linear',title:{display:true,text:'Part 접미 숫자'},ticks:{precision:0}},y:{title:{display:true,text:'Metric 값'}}},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': ('+ctx.raw.x+', '+ctx.raw.y+')'}}}}});
- const dimensions=new Set(compare.map(c=>c.group.group_name+'||'+c.metric));
- note.textContent=dimensions.size>1?'서로 다른 그룹/metric이 포함되어 있습니다. 축 단위가 다를 수 있으므로 결과 의미를 확인하세요.':'';
+function renderComparison(){
+ $('compare').innerHTML=comparison.length?comparison.map((c,i)=>'<div class="compare-item"><div><strong>'+esc(c.product)+' · '+esc(c.hbm)+' · '+esc(c.stack)+(c.por?' · POR':'')+'</strong><div class="details">'+esc(c.variant)+' · '+esc(c.group.group_name)+' · '+esc(c.metric)+'</div></div><button class="remove" data-remove="'+i+'">×</button></div>').join(''):'<div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div>';
+ document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{comparison.splice(Number(b.dataset.remove),1);renderComparison();});draw();renderParameterTable();
+}
+function draw(){
+ if(chart){chart.destroy();chart=null;}if(!comparison.length){$('chartNote').textContent='';return;}
+ const datasets=comparison.map((c,i)=>({label:c.product+' · '+c.hbm+' · '+c.stack+(c.por?' · POR':'')+' · '+c.metric,data:c.group.points.map(p=>({x:p.x,y:p.values_numeric?.[c.metric]??(c.metric in p.values?Number(p.values[c.metric]):null)})).filter(p=>p.y!==null&&Number.isFinite(p.y)),showLine:true,tension:0,pointRadius:4,borderColor:colors[i%colors.length],backgroundColor:colors[i%colors.length]}));
+ chart=new Chart($('plot'),{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,parsing:false,scales:{x:{type:'linear',title:{display:true,text:'Part 접미 숫자'},ticks:{precision:0}},y:{title:{display:true,text:'Metric 값'}}},plugins:{legend:{position:'bottom'}}}});
+ const dims=new Set(comparison.map(c=>c.group.group_name+'|'+c.metric));$('chartNote').textContent=dims.size>1?'서로 다른 그룹/metric이 포함되어 있어 축 단위를 확인하세요.':'X축은 접미 숫자, Y축은 선택한 metric 값입니다.';
+}
+function renderParameterTable(){
+ const selected=[...new Map(comparison.map(c=>[c.variant,c])).values()];
+ if(!selected.length){$('parameterTable').innerHTML='<div class="empty">비교 결과를 추가하면 Input Parameter 비교표가 표시됩니다.</div>';return;}
+ const names=[...new Set(selected.flatMap(c=>Object.keys(c.parameters||{})))].sort((a,b)=>a==='HBM_Gen'?-1:b==='HBM_Gen'?1:a.localeCompare(b));
+ let html='<div class="table-scroll"><table class="parameter-table"><thead><tr><th>Input Parameter</th>'+selected.map(c=>'<th>'+esc(c.product)+'<br>'+esc(c.hbm)+' · '+esc(c.stack)+(c.por?' · POR':'')+'<br><small>'+esc(c.variant)+'</small></th>').join('')+'</tr></thead><tbody>';
+ for(const name of names)html+='<tr><td>'+esc(name)+'</td>'+selected.map(c=>'<td>'+esc(c.parameters?.[name]??'—')+'</td>').join('')+'</tr>';
+ $('parameterTable').innerHTML=html+'</tbody></table></div>';
 }
 function exportCsv(){
- const rows=[['product','por_id','file','group','metric','x','y']];
- compare.forEach(c=>c.group.points.forEach(p=>rows.push([c.product,c.por,c.file,c.group.group_name,c.metric,p.x,p.values_numeric?.[c.metric]??p.values[c.metric]??''])));
- if(rows.length===1){alert('내보낼 비교 데이터가 없습니다.');return;}
- const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='sip_comparison.csv';a.click();URL.revokeObjectURL(a.href);
+ if(!comparison.length){alert('비교 데이터가 없습니다.');return;}
+ const rows=[['product','variant_folder','hbm_gen','stack','por','group','metric','x','y']];
+ comparison.forEach(c=>c.group.points.forEach(p=>rows.push([c.product,c.variant,c.hbm,c.stack,c.por?'POR':'',c.group.group_name,c.metric,p.x,p.values_numeric?.[c.metric]??p.values?.[c.metric]??''])));
+ const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='sip_comparison.csv';a.click();URL.revokeObjectURL(a.href);
 }
-$('connect').onclick=connect;$('clear').onclick=()=>{compare=[];renderCompare();};$('export').onclick=exportCsv;
-$('productSearch').addEventListener('input',renderProducts);$('hbmFilter').addEventListener('change',renderProducts);
+$('connect').onclick=connect;
+$('productSelect').addEventListener('change',()=>{selectedProduct=$('productSelect').value;selectedVariant='';renderSelectors();loadVariant();});
+$('variantSelect').addEventListener('change',()=>{selectedVariant=$('variantSelect').value;loadVariant();});
+$('clear').onclick=()=>{comparison=[];renderComparison();};$('csv').onclick=exportCsv;
 connect();
 </script>
 </body></html>
