@@ -4,6 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SiP Simulator</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
 :root{font-family:Inter,"Malgun Gothic",sans-serif;color:#172033;background:#f4f6fa}*{box-sizing:border-box}body{margin:0}
 header{background:#15243b;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}
@@ -18,6 +20,9 @@ label{font-size:12px;font-weight:700;color:#4b5870}.field{display:flex;flex-dire
 .chartbox{height:320px;position:relative;margin-top:14px}.empty{color:#77839a;padding:26px 8px;text-align:center;font-size:13px}.error{color:#b42318;background:#fff0ef;border-radius:8px;padding:12px;margin:8px 0}.notice{font-size:12px;background:#fff7e6;border:1px solid #f4d79b;color:#865d13;padding:10px;border-radius:8px;margin:8px 0 14px}
 .parameter-panel{margin-top:20px;border-top:1px solid #e5e9f0;padding-top:16px}.parameter-panel h3{font-size:14px;margin:0 0 8px}.table-scroll{overflow:auto;max-width:100%}.parameter-table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}.parameter-table th,.parameter-table td{border:1px solid #e0e5ed;padding:8px 10px;text-align:left}.parameter-table th{background:#f1f5f9}.parameter-table td:first-child{font-weight:600;background:#f8fafc}
 @media(max-width:920px){main{grid-template-columns:1fr;padding:10px}header{padding:14px}.chartbox{height:280px}}@media(max-width:520px){.selector-grid{grid-template-columns:1fr}}
+
+.model-panel{grid-column:1/-1}.mesh-toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.mesh-toolbar .field{min-width:220px;flex:1}.mesh-stage{height:520px;position:relative;background:#f8fafc;border:1px solid #dfe5ef;border-radius:10px;overflow:hidden;margin-top:12px}.mesh-stage canvas{display:block;width:100%;height:100%}.mesh-overlay{position:absolute;left:12px;top:12px;max-width:45%;background:rgba(255,255,255,.92);border:1px solid #dfe5ef;border-radius:8px;padding:10px;font-size:12px;pointer-events:none}.mesh-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.mesh-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;padding:5px 8px;border:1px solid #e0e5ed;border-radius:6px}.mesh-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}.mesh-status{font-size:12px;color:#68758a;margin-top:8px;white-space:pre-wrap}
+@media(max-width:920px){.mesh-stage{height:380px}.mesh-overlay{max-width:75%}}
 </style>
 </head>
 <body>
@@ -41,10 +46,23 @@ label{font-size:12px;font-weight:700;color:#4b5870}.field{display:flex;flex-dire
   <div class="chartbox"><canvas id="plot"></canvas></div><div id="chartNote" class="meta"></div>
   <div class="parameter-panel"><h3>비교 결과의 Input Parameters</h3><p class="meta">각 비교 폴더의 .py 변수값을 별도 열로 표시합니다. 동일 SiP라도 HBM/Stack 조건이 다르면 별도 열입니다.</p><div id="parameterTable"><div class="empty">비교 결과를 추가하면 Input Parameter 비교표가 표시됩니다.</div></div></div>
 </section>
+
+<section class="panel model-panel">
+  <h2>Model Image · Abaqus INP Mesh</h2>
+  <div class="mesh-toolbar">
+    <div class="field"><label for="meshFile">INP 파일</label><select id="meshFile" disabled><option>제품 조건 선택 후 표시</option></select></div>
+    <button id="loadMesh" class="primary" disabled>3D 모델 불러오기</button>
+    <button id="fitMesh" disabled>화면 맞춤</button>
+  </div>
+  <div class="mesh-stage" id="meshStage"><div class="empty">제품 조건을 선택한 후 INP 파일을 불러오세요.</div></div>
+  <div id="meshLegend" class="mesh-legend"></div>
+  <div id="meshStatus" class="mesh-status">Abaqus/CAE Python API로 INP를 읽고 Part별 색상으로 렌더링합니다.</div>
+</section>
 </main>
 <script>
 const ADMIN='관리자 (jeeh.jung@samsung.com)',$=id=>document.getElementById(id);
 let apiBase='http://localhost:8000',variants=[],selectedProduct='',selectedVariant='',activeData=null,comparison=[],chart=null;
+let meshRenderer=null,meshScene=null,meshCamera=null,meshControls=null,meshGroup=null,meshResizeObserver=null;
 const colors=['#245bd6','#d14b36','#14845c','#8a4dcc','#d28a14','#138c9c','#b33d80','#667085'];
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function api(path){const r=await fetch(apiBase+path);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||'API 요청 실패');return d;}
@@ -80,6 +98,7 @@ async function loadVariant(){
   activeData={...d,parameters:flatParameters(d.parameters)};
   $('files').innerHTML=Object.entries(d.files||{}).map(([k,arr])=>'<span class="pill">.'+esc(k)+' '+arr.length+'개</span>').join('');
   renderResults(activeData);
+  renderMeshOptions(d.files?.inp||[]);
  }catch(e){$('results').innerHTML='<div class="error">'+esc(e.message||ADMIN)+'</div>';}
 }
 function renderResults(data){
@@ -119,6 +138,68 @@ function renderParameterTable(){
  for(const name of names)html+='<tr><td>'+esc(name)+'</td>'+selected.map(c=>'<td>'+esc(c.parameters?.[name]??'—')+'</td>').join('')+'</tr>';
  $('parameterTable').innerHTML=html+'</tbody></table></div>';
 }
+
+const meshPalette=[0x4285f4,0xf4a340,0x42a875,0xb47be0,0xe45d75,0x35a7b8,0xd6b83e,0x7b8794,0xe07b39,0x4f6d5e,0x8c6fc1,0x5a90c9];
+function renderMeshOptions(files){
+ const select=$('meshFile');
+ select.innerHTML=(files||[]).map(f=>'<option value="'+esc(f)+'">'+esc(f)+'</option>').join('')||'<option value="">INP 파일 없음</option>';
+ select.disabled=!(files||[]).length;$('loadMesh').disabled=select.disabled;
+ $('meshStatus').textContent=files.length?'Abaqus 서버 연결 후 3D 모델을 불러올 수 있습니다.':'선택한 조건 폴더에 INP 파일이 없습니다.';
+ if(!files.length){$('meshLegend').innerHTML='';$('meshStage').innerHTML='<div class="empty">INP 파일이 없습니다.</div>';}
+}
+function initMeshScene(){
+ if(typeof THREE==='undefined'||!THREE.OrbitControls)throw new Error('Three.js 라이브러리를 불러오지 못했습니다. CDN 접근을 확인하세요.');
+ const stage=$('meshStage');stage.innerHTML='';
+ meshScene=new THREE.Scene();meshScene.background=new THREE.Color(0xf8fafc);
+ meshCamera=new THREE.PerspectiveCamera(45,stage.clientWidth/Math.max(stage.clientHeight,1),0.01,1e12);
+ meshRenderer=new THREE.WebGLRenderer({antialias:true,alpha:false});meshRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));meshRenderer.setSize(stage.clientWidth,stage.clientHeight);stage.appendChild(meshRenderer.domElement);
+ meshScene.add(new THREE.AmbientLight(0xffffff,0.8));
+ const light=new THREE.DirectionalLight(0xffffff,0.85);light.position.set(1,2,3);meshScene.add(light);
+ meshGroup=new THREE.Group();meshScene.add(meshGroup);
+ meshControls=new THREE.OrbitControls(meshCamera,meshRenderer.domElement);meshControls.enableDamping=true;meshControls.dampingFactor=0.08;
+ const grid=new THREE.GridHelper(10,10,0xd1d9e6,0xe8edf4);grid.position.y=-0.01;meshScene.add(grid);
+ if(meshResizeObserver)meshResizeObserver.disconnect();
+ meshResizeObserver=new ResizeObserver(()=>resizeMesh());meshResizeObserver.observe(stage);
+ const render=()=>{if(!meshRenderer)return;requestAnimationFrame(render);meshControls?.update();meshRenderer.render(meshScene,meshCamera);};render();
+}
+function resizeMesh(){if(!meshRenderer||!meshCamera)return;const stage=$('meshStage');const w=stage.clientWidth,h=Math.max(stage.clientHeight,1);meshCamera.aspect=w/h;meshCamera.updateProjectionMatrix();meshRenderer.setSize(w,h);}
+function fitMesh(){
+ if(!meshGroup||!meshCamera||!meshControls)return;
+ const box=new THREE.Box3().setFromObject(meshGroup);if(box.isEmpty())return;
+ const sphere=box.getBoundingSphere(new THREE.Sphere());const radius=Math.max(sphere.radius,1e-6);
+ meshControls.target.copy(sphere.center);meshCamera.position.copy(sphere.center).add(new THREE.Vector3(1.5,1.1,1.7).normalize().multiplyScalar(radius*2.8));
+ meshCamera.near=Math.max(radius/10000,1e-7);meshCamera.far=Math.max(radius*100,100);meshCamera.updateProjectionMatrix();meshControls.minDistance=radius/1000;meshControls.maxDistance=radius*100;meshControls.update();
+}
+async function loadMesh(){
+ const file=$('meshFile').value;if(!selectedVariant||!file)return;
+ $('loadMesh').disabled=true;$('meshStatus').textContent='Abaqus/CAE에서 모델을 읽는 중입니다. 모델 크기에 따라 시간이 걸릴 수 있습니다.';
+ try{
+  const data=await api('/api/products/'+encodeURIComponent(selectedVariant)+'/mesh?file_name='+encodeURIComponent(file));
+  if(!data.parts?.length)throw new Error('표시 가능한 Part 메시가 없습니다. 지원되지 않는 요소 타입인지 확인하세요.');
+  if(!meshRenderer)initMeshScene();
+  while(meshGroup.children.length){const child=meshGroup.children.pop();meshGroup.remove(child);child.geometry?.dispose();if(child.material){if(Array.isArray(child.material))child.material.forEach(m=>m.dispose());else child.material.dispose();}}
+  const legend=[];
+  data.parts.forEach((part,index)=>{
+   const color=meshPalette[index%meshPalette.length];
+   if(part.triangles?.length){
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(part.triangles,3));geometry.computeVertexNormals();
+    const material=new THREE.MeshStandardMaterial({color,roughness:0.78,metalness:0.02,side:THREE.DoubleSide});
+    meshGroup.add(new THREE.Mesh(geometry,material));
+   }
+   if(part.edges?.length){
+    const edgeGeometry=new THREE.BufferGeometry();edgeGeometry.setAttribute('position',new THREE.Float32BufferAttribute(part.edges,3));
+    const edgeMaterial=new THREE.LineBasicMaterial({color:0x263548,transparent:true,opacity:0.38});
+    meshGroup.add(new THREE.LineSegments(edgeGeometry,edgeMaterial));
+   }
+   legend.push('<span class="mesh-legend-item"><i class="mesh-swatch" style="background:#'+color.toString(16).padStart(6,'0')+'"></i>'+esc(part.name)+' <span class="filename">('+esc(part.instances?.length||0)+' instances)</span></span>');
+  });
+  $('meshLegend').innerHTML=legend.join('');fitMesh();
+  const triCount=data.parts.reduce((sum,p)=>sum+(p.triangles?.length||0)/9,0);
+  $('meshStatus').textContent='변환 완료 · '+data.part_count+' Parts · 약 '+Math.round(triCount).toLocaleString()+' triangles · source: '+data.source+'\\n마우스 드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동';
+ }catch(e){$('meshStatus').textContent='모델 로드 실패: '+(e.message||String(e));}
+ finally{$('loadMesh').disabled=false;}
+}
+
 function exportCsv(){
  if(!comparison.length){alert('비교 데이터가 없습니다.');return;}
  const rows=[['product','variant_folder','hbm_gen','stack','por','group','metric','x','y']];
@@ -126,6 +207,7 @@ function exportCsv(){
  const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='sip_comparison.csv';a.click();URL.revokeObjectURL(a.href);
 }
 $('connect').onclick=connect;
+$('loadMesh').onclick=loadMesh;$('fitMesh').onclick=fitMesh;
 $('productSelect').addEventListener('change',()=>{selectedProduct=$('productSelect').value;selectedVariant='';renderSelectors();loadVariant();});
 $('variantSelect').addEventListener('change',()=>{selectedVariant=$('variantSelect').value;loadVariant();});
 $('clear').onclick=()=>{comparison=[];renderComparison();};$('csv').onclick=exportCsv;
