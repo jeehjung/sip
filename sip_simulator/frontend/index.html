@@ -28,6 +28,7 @@ input[type=text]{min-width:250px;flex:1}button{cursor:pointer}button.primary{bac
 <section class="panel">
   <h2>제품 및 결과 선택</h2>
   <div class="toolbar"><input id="apiUrl" type="text" value="http://localhost:8000" aria-label="API 주소"><button id="connect" class="primary">연결</button></div>
+  <div class="toolbar"><input id="productSearch" type="text" placeholder="SiP 제품명 검색" aria-label="SiP 제품명 검색"><select id="hbmFilter" aria-label="HBM 세대 필터"><option value="">전체 HBM 세대</option></select></div>
   <div id="products" class="product-list"></div>
   <div id="selectedProduct" class="status">API 연결 후 제품을 선택하세요.</div>
   <div id="fileStatus" class="file-pills"></div>
@@ -56,12 +57,29 @@ async function connect(){
  catch(e){$('apiState').textContent='연결 실패';$('products').innerHTML='<div class="error">'+esc(e.message)+'</div>';}
 }
 function renderProducts(){
- $('products').innerHTML=products.map(p=>'<button class="product-chip '+(p.product_id===activeProduct?'active':'')+'" data-id="'+esc(p.product_id)+'">'+esc(p.product_id)+'</button>').join('');
+ const currentGen=$('hbmFilter').value;
+ const generations=[...new Set(products.filter(p=>p.available&&p.hbm_gen).map(p=>p.hbm_gen))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+ const hasUnspecified=products.some(p=>!p.hbm_gen);
+ $('hbmFilter').innerHTML='<option value="">전체 HBM 세대</option>'+generations.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join('')+(hasUnspecified?'<option value="__UNSPECIFIED__">미지정</option>':'');
+ if([...generations,'','__UNSPECIFIED__'].includes(currentGen)) $('hbmFilter').value=currentGen;
+ const query=$('productSearch').value.trim().toLowerCase();
+ const filtered=products.filter(p=>{
+   const matchesName=p.product_id.toLowerCase().includes(query);
+   const matchesGen=!$('hbmFilter').value||($('hbmFilter').value==='__UNSPECIFIED__'?!p.hbm_gen:p.hbm_gen===$('hbmFilter').value);
+   return matchesName&&matchesGen;
+ });
+ if(activeProduct&&!filtered.some(p=>p.product_id===activeProduct)){
+   activeProduct=null;
+   $('selectedProduct').textContent='검색 조건에 맞는 제품을 선택하세요.';
+   $('fileStatus').innerHTML='';
+   $('results').innerHTML='<div class="empty">제품을 선택하면 TXT 결과 그룹이 표시됩니다.</div>';
+ }
+ $('products').innerHTML=filtered.map(p=>'<button class="product-chip '+(p.product_id===activeProduct?'active':'')+'" data-id="'+esc(p.product_id)+'">'+esc(p.product_id)+' · '+esc(p.hbm_gen||'HBM 세대 미지정')+'</button>').join('')||'<div class="empty">검색 조건에 맞는 제품이 없습니다.</div>';
  document.querySelectorAll('.product-chip').forEach(b=>b.onclick=()=>loadProduct(b.dataset.id));
 }
 async function loadProduct(id){
  activeProduct=id;renderProducts();const p=products.find(x=>x.product_id===id);
- $('selectedProduct').textContent=id;
+ $('selectedProduct').textContent=id+' · HBM 세대: '+(p?.hbm_gen||'미지정');
  if(!p?.available){$('results').innerHTML='<div class="error">'+esc(p?.message||ADMIN)+'</div><div class="status">'+esc(p?.reason||'')+'</div>';$('fileStatus').innerHTML='';return;}
  try{
  const d=await api('/api/products/'+encodeURIComponent(id)+'/results');
@@ -114,6 +132,7 @@ function exportCsv(){
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='sip_comparison.csv';a.click();URL.revokeObjectURL(a.href);
 }
 $('connect').onclick=connect;$('clear').onclick=()=>{compare=[];renderCompare();};$('export').onclick=exportCsv;
+$('productSearch').addEventListener('input',renderProducts);$('hbmFilter').addEventListener('change',renderProducts);
 connect();
 </script>
 </body></html>

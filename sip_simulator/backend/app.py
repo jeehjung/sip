@@ -147,6 +147,23 @@ def extract_parameter_candidates(py_text: str) -> list[dict[str, str]]:
     return result[:500]
 
 
+def extract_hbm_gen(py_files: list[Path]) -> str | None:
+    """Read HBM_Gen from static assignments without executing the .py file."""
+    found: list[str] = []
+    for py_file in py_files:
+        for item in extract_parameter_candidates(safe_read_text(py_file)):
+            if item["name"] == "HBM_Gen":
+                value = item["value"].strip()
+                # Remove surrounding quotes from common string assignments.
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '\"'}:
+                    value = value[1:-1].strip()
+                if value and value not in found:
+                    found.append(value)
+    if len(found) == 1:
+        return found[0]
+    return None
+
+
 def product_summary(product_dir: Path) -> dict[str, Any]:
     pors = exact_por_children(product_dir)
     if len(pors) != 1:
@@ -163,9 +180,11 @@ def product_summary(product_dir: Path) -> dict[str, Any]:
             "message": ADMIN_MESSAGE,
             "reason": "POR 폴더에 필수 확장자(.txt/.py/.inp/.odb) 파일이 모두 있어야 합니다.",
         }
+    hbm_gen = extract_hbm_gen(files[".py"])
     return {
         "product_id": product_dir.name, "available": True,
         "por_id": str(por.relative_to(DATA_ROOT)),
+        "hbm_gen": hbm_gen,
         "files": {ext[1:]: [p.name for p in paths] for ext, paths in files.items()},
     }
 

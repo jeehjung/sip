@@ -21,3 +21,17 @@ def test_no_suffix_is_not_silently_grouped():
     groups = appmod.group_part_rows(headers, rows)
     assert groups[0]["group_name"] == "그룹화 불가 Part"
     assert groups[0]["points"] == []
+
+
+def test_hbm_gen_static_assignment(tmp_path):
+    py_file = tmp_path / "model.py"
+    py_file.write_text("HBM_Gen = 'HBM3E'\\nOTHER = 12\\n", encoding="utf-8")
+    assert appmod.extract_hbm_gen([py_file]) == "HBM3E"
+
+
+def test_hbm_gen_conflicting_assignments_are_unspecified(tmp_path):
+    first = tmp_path / "a.py"
+    second = tmp_path / "b.py"
+    first.write_text('HBM_Gen = "HBM3E"\\n', encoding="utf-8")
+    second.write_text('HBM_Gen = "HBM4"\\n', encoding="utf-8")
+    assert appmod.extract_hbm_gen([first, second]) is None
