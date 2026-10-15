@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SiP Simulator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root{font-family:Inter,"Malgun Gothic",sans-serif;color:#172033;background:#f4f6fa}
+*{box-sizing:border-box}body{margin:0}header{background:#15243b;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:21px;margin:0}main{padding:18px;display:grid;grid-template-columns:minmax(320px,1fr) minmax(380px,1.1fr);gap:16px}
+.panel{background:white;border:1px solid #dfe5ef;border-radius:12px;padding:16px;min-width:0}
+h2{font-size:16px;margin:0 0 12px}.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+input,select,button{font:inherit;border:1px solid #ccd5e3;border-radius:7px;padding:8px;background:white;color:#172033}
+input[type=text]{min-width:250px;flex:1}button{cursor:pointer}button.primary{background:#245bd6;color:white;border-color:#245bd6}
+.product-list{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}.product-chip{padding:7px 10px;border-radius:999px;background:#edf1f8;border:1px solid #d7deeb;cursor:pointer}.product-chip.active{background:#dce8ff;border-color:#7fa4f4}
+.status{font-size:12px;color:#68758a;margin:8px 0}.error{color:#b42318;background:#fff0ef;border-radius:8px;padding:12px;margin:8px 0}
+.result-card{border:1px solid #e0e5ed;border-radius:9px;padding:12px;margin:10px 0}.result-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.result-head strong{overflow-wrap:anywhere}
+.metric-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.metric-row select{max-width:220px}.add{font-weight:bold;color:white;background:#16794b;border:0;border-radius:6px;min-width:34px}
+.compare-item{padding:9px;border-bottom:1px solid #e5e9f0;display:flex;justify-content:space-between;gap:8px}.compare-item span{overflow-wrap:anywhere}
+.chart-wrap{height:320px;position:relative;margin-top:14px}.empty{color:#77839a;padding:28px 8px;text-align:center}
+.file-pills{display:flex;gap:6px;flex-wrap:wrap}.pill{background:#eef2f7;padding:5px 8px;border-radius:6px;font-size:12px}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:10px}header{padding:14px}.chart-wrap{height:280px}}
+</style>
+</head>
+<body>
+<header><h1>SiP Simulator</h1><span id="apiState">API 연결 전</span></header>
+<main>
+<section class="panel">
+  <h2>제품 및 결과 선택</h2>
+  <div class="toolbar"><input id="apiUrl" type="text" value="http://localhost:8000" aria-label="API 주소"><button id="connect" class="primary">연결</button></div>
+  <div id="products" class="product-list"></div>
+  <div id="selectedProduct" class="status">API 연결 후 제품을 선택하세요.</div>
+  <div id="fileStatus" class="file-pills"></div>
+  <div id="results"><div class="empty">제품을 선택하면 TXT 결과 그룹이 표시됩니다.</div></div>
+</section>
+<section class="panel">
+  <h2>결과 비교</h2>
+  <div class="status">같은 그룹·같은 metric은 하나의 XY 그래프에 겹쳐 표시됩니다. X축은 Part 접미 숫자입니다.</div>
+  <div id="compareList"><div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div></div>
+  <div class="toolbar"><button id="clear">비교 목록 비우기</button><button id="export">CSV 내보내기</button></div>
+  <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  <div id="chartNote" class="status"></div>
+</section>
+</main>
+<script>
+const ADMIN='관리자 (jeeh.jung@samsung.com)에게 문의하세요.';
+let apiBase='http://localhost:8000', products=[], activeProduct=null, compare=[], chart=null;
+const $=id=>document.getElementById(id);
+const palette=['#245bd6','#d14b36','#14845c','#8a4dcc','#d28a14','#138c9c','#b33d80','#667085'];
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function api(path){const r=await fetch(apiBase+path);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||'API 요청 실패');return d;}
+async function connect(){
+ apiBase=$('apiUrl').value.trim().replace(/\/+$/,'');
+ $('apiState').textContent='연결 중…';
+ try{const d=await api('/api/products');products=d.products||[];$('apiState').textContent='API 연결됨';renderProducts();}
+ catch(e){$('apiState').textContent='연결 실패';$('products').innerHTML='<div class="error">'+esc(e.message)+'</div>';}
+}
+function renderProducts(){
+ $('products').innerHTML=products.map(p=>'<button class="product-chip '+(p.product_id===activeProduct?'active':'')+'" data-id="'+esc(p.product_id)+'">'+esc(p.product_id)+'</button>').join('');
+ document.querySelectorAll('.product-chip').forEach(b=>b.onclick=()=>loadProduct(b.dataset.id));
+}
+async function loadProduct(id){
+ activeProduct=id;renderProducts();const p=products.find(x=>x.product_id===id);
+ $('selectedProduct').textContent=id;
+ if(!p?.available){$('results').innerHTML='<div class="error">'+esc(p?.message||ADMIN)+'</div><div class="status">'+esc(p?.reason||'')+'</div>';$('fileStatus').innerHTML='';return;}
+ try{
+ const d=await api('/api/products/'+encodeURIComponent(id)+'/results');
+ $('fileStatus').innerHTML=Object.entries(d.files).map(([k,v])=>'<span class="pill">.'+esc(k)+' '+v.length+'개</span>').join('');
+ renderResults(d);
+ }catch(e){$('results').innerHTML='<div class="error">'+esc(e.message)+'</div>';}
+}
+function renderResults(data){
+ const cards=[];
+ for(const file of data.results||[])for(const g of file.groups||[]){
+  if(!g.points?.length)continue;
+  const metricOptions=g.metrics.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+  cards.push('<div class="result-card"><div class="result-head"><strong>'+esc(g.group_name)+'</strong><span class="status">'+esc(file.file_name)+' · '+g.points.length+' points</span></div>'+
+    (g.warnings||[]).map(w=>'<div class="status">'+esc(w)+'</div>').join('')+
+    '<div class="metric-row"><label>Y축 metric</label><select class="metric-select">'+metricOptions+'</select><button class="add" title="비교에 추가" data-file="'+esc(file.file_name)+'" data-group="'+esc(g.group_name)+'">+</button></div>'+
+    '<div class="status">X: 접미 숫자 · 범위 '+g.points[0].x+'–'+g.points[g.points.length-1].x+'</div>'+
+    '<script type="application/json" class="group-data">'+JSON.stringify(g).replace(/</g,'\\u003c')+'</scr'+'ipt></div>');
+ }
+ $('results').innerHTML=cards.length?cards.join(''):'<div class="empty">표시할 수 있는 숫자 접미 그룹이 없습니다.</div>';
+ document.querySelectorAll('.result-card .add').forEach(btn=>btn.onclick=()=>{
+   const card=btn.closest('.result-card'),g=JSON.parse(card.querySelector('.group-data').textContent),metric=card.querySelector('.metric-select').value;
+   const key=[data.product_id,data.por_id,btn.dataset.file,g.group_name,metric].join('|');
+   if(!compare.some(c=>c.key===key))compare.push({key,product:data.product_id,por:data.por_id,file:btn.dataset.file,group:g,metric});
+   renderCompare();
+ });
+}
+function renderCompare(){
+ $('compareList').innerHTML=compare.length?compare.map((c,i)=>'<div class="compare-item"><span><strong>'+esc(c.product)+'</strong> · '+esc(c.group.group_name)+' · '+esc(c.metric)+'<div class="status">'+esc(c.file)+'</div></span><button data-remove="'+i+'" aria-label="비교에서 제거">×</button></div>').join(''):'<div class="empty">왼쪽에서 + 버튼을 눌러 결과를 추가하세요.</div>';
+ document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{compare.splice(Number(b.dataset.remove),1);renderCompare();});
+ drawChart();
+}
+function drawChart(){
+ if(chart){chart.destroy();chart=null;}
+ const canvas=$('chart'), note=$('chartNote');
+ if(!compare.length){note.textContent='';return;}
+ const datasets=[];
+ compare.forEach(c=>{
+   const values=c.group.points.map(p=>({x:p.x,y:p.values_numeric?.[c.metric]??(c.metric in p.values?Number(p.values[c.metric]):null)})).filter(p=>p.y!==null&&Number.isFinite(p.y));
+   datasets.push({label:c.product+' · '+c.group.group_name+' · '+c.metric,data:values,showLine:true,tension:0,pointRadius:3,borderColor:palette[datasets.length%palette.length],backgroundColor:palette[datasets.length%palette.length]});
+ });
+ chart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,parsing:false,scales:{x:{type:'linear',title:{display:true,text:'Part 접미 숫자'},ticks:{precision:0}},y:{title:{display:true,text:'Metric 값'}}},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': ('+ctx.raw.x+', '+ctx.raw.y+')'}}}}});
+ const dimensions=new Set(compare.map(c=>c.group.group_name+'||'+c.metric));
+ note.textContent=dimensions.size>1?'서로 다른 그룹/metric이 포함되어 있습니다. 축 단위가 다를 수 있으므로 결과 의미를 확인하세요.':'';
+}
+function exportCsv(){
+ const rows=[['product','por_id','file','group','metric','x','y']];
+ compare.forEach(c=>c.group.points.forEach(p=>rows.push([c.product,c.por,c.file,c.group.group_name,c.metric,p.x,p.values_numeric?.[c.metric]??p.values[c.metric]??''])));
+ if(rows.length===1){alert('내보낼 비교 데이터가 없습니다.');return;}
+ const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='sip_comparison.csv';a.click();URL.revokeObjectURL(a.href);
+}
+$('connect').onclick=connect;$('clear').onclick=()=>{compare=[];renderCompare();};$('export').onclick=exportCsv;
+connect();
+</script>
+</body></html>
