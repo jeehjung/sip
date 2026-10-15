@@ -140,7 +140,12 @@ function renderParameterTable(){
 }
 
 const meshPalette=[0x4285f4,0xf4a340,0x42a875,0xb47be0,0xe45d75,0x35a7b8,0xd6b83e,0x7b8794,0xe07b39,0x4f6d5e,0x8c6fc1,0x5a90c9];
+function clearMeshGeometry(){
+ if(!meshGroup)return;
+ while(meshGroup.children.length){const child=meshGroup.children[0];meshGroup.remove(child);if(child.geometry)child.geometry.dispose();if(child.material){if(Array.isArray(child.material))child.material.forEach(m=>m.dispose());else child.material.dispose();}}
+}
 function renderMeshOptions(files){
+ clearMeshGeometry();$('meshLegend').innerHTML='';
  const select=$('meshFile');
  select.innerHTML=(files||[]).map(f=>'<option value="'+esc(f)+'">'+esc(f)+'</option>').join('')||'<option value="">INP 파일 없음</option>';
  select.disabled=!(files||[]).length;$('loadMesh').disabled=select.disabled;
@@ -177,7 +182,7 @@ async function loadMesh(){
   const data=await api('/api/products/'+encodeURIComponent(selectedVariant)+'/mesh?file_name='+encodeURIComponent(file));
   if(!data.parts?.length)throw new Error('표시 가능한 Part 메시가 없습니다. 지원되지 않는 요소 타입인지 확인하세요.');
   if(!meshRenderer)initMeshScene();
-  while(meshGroup.children.length){const child=meshGroup.children.pop();meshGroup.remove(child);child.geometry?.dispose();if(child.material){if(Array.isArray(child.material))child.material.forEach(m=>m.dispose());else child.material.dispose();}}
+  clearMeshGeometry();
   const legend=[];
   data.parts.forEach((part,index)=>{
    const color=meshPalette[index%meshPalette.length];
