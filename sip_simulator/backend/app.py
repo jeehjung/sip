@@ -24,25 +24,35 @@ app.add_middleware(
 )
 
 
-def exact_por_children(product_dir: Path) -> list[Path]:
-    if not product_dir.is_dir():
-        return []
-    # Exact logical name comparison; POR_old, por and PRE_POR are not candidates.
-    return [p for p in product_dir.iterdir() if p.is_dir() and p.name == "POR"]
+VARIANT_FOLDER_RE = re.compile(r"^(?P<product>.+?)_(?P<hbm>HBM(?:2E|3E|3|4))_(?P<stack>[0-9]+H)(?P<por>_POR)?$")
 
 
-def find_required_files(por_dir: Path) -> dict[str, list[Path]]:
+def parse_variant_folder(folder_name: str) -> dict[str, Any] | None:
+    """Parse folders such as SIP_A_HBM3E_12H_POR or SIP_A_HBM4_8H."""
+    match = VARIANT_FOLDER_RE.fullmatch(folder_name)
+    if not match:
+        return None
+    return {
+        "product_id": match.group("product"),
+        "variant_id": folder_name,
+        "hbm_gen": match.group("hbm"),
+        "stack": match.group("stack"),
+        "is_por": bool(match.group("por")),
+    }
+
+
+def find_required_files(variant_dir: Path) -> dict[str, list[Path]]:
     return {
         ext: sorted(
-            p for p in por_dir.iterdir()
+            p for p in variant_dir.iterdir()
             if p.is_file() and p.suffix.lower() == ext
         )
         for ext in (".txt", ".py", ".inp", ".odb")
     }
 
 
-def is_valid_por(por_dir: Path) -> tuple[bool, dict[str, list[Path]]]:
-    files = find_required_files(por_dir)
+def is_valid_variant(variant_dir: Path) -> tuple[bool, dict[str, list[Path]]]:
+    files = find_required_files(variant_dir)
     return all(files[ext] for ext in (".txt", ".py", ".inp", ".odb")), files
 
 
@@ -164,45 +174,40 @@ def extract_hbm_gen(py_files: list[Path]) -> str | None:
     return None
 
 
-def product_summary(product_dir: Path) -> dict[str, Any]:
-    pors = exact_por_children(product_dir)
-    if len(pors) != 1:
-        return {
-            "product_id": product_dir.name, "available": False,
-            "message": ADMIN_MESSAGE,
-            "reason": "POR 폴더가 없거나 정확한 이름의 POR 폴더가 둘 이상입니다.",
-        }
-    por = pors[0]
-    valid, files = is_valid_por(por)
+def variant_summary(variant_dir: Path) -> dict[str, Any]:
+    parsed = parse_variant_folder(variant_dir.name)
+    if not parsed:
+        return {}
+    valid, files = is_valid_variant(variant_dir)
+    py_hbm = extract_hbm_gen(files[".py"]) if files[".py"] else None
     if not valid:
         return {
-            "product_id": product_dir.name, "available": False,
-            "message": ADMIN_MESSAGE,
-            "reason": "POR 폴더에 필수 확장자(.txt/.py/.inp/.odb) 파일이 모두 있어야 합니다.",
+            **parsed, "available": False, "message": ADMIN_MESSAGE,
+            "reason": "선택한 조건 폴더에 필수 확장자(.txt/.py/.inp/.odb) 파일이 모두 있어야 합니다.",
+            "files": {ext[1:]: [p.name for p in paths] for ext, paths in files.items()},
+            "py_hbm_gen": py_hbm,
         }
-    hbm_gen = extract_hbm_gen(files[".py"])
     return {
-        "product_id": product_dir.name, "available": True,
-        "por_id": str(por.relative_to(DATA_ROOT)),
-        "hbm_gen": hbm_gen,
+        **parsed, "available": True,
+        "folder": str(variant_dir.relative_to(DATA_ROOT)),
         "files": {ext[1:]: [p.name for p in paths] for ext, paths in files.items()},
+        "py_hbm_gen": py_hbm,
+        "hbm_warning": (f"폴더명 HBM({parsed['hbm_gen']})과 .py HBM_Gen({py_hbm})이 다릅니다."
+                       if py_hbm and py_hbm != parsed["hbm_gen"] else None),
     }
 
 
-def get_product_por(product_id: str) -> tuple[Path, dict[str, list[Path]]]:
-    if not product_id or product_id in {".", ".."} or "/" in product_id or "\\" in product_id:
-        raise HTTPException(status_code=400, detail="잘못된 product_id")
-    product_dir = (DATA_ROOT / product_id).resolve()
-    if product_dir.parent != DATA_ROOT or not product_dir.is_dir():
+def get_variant(variant_id: str) -> tuple[Path, dict[str, list[Path]], dict[str, Any]]:
+    if not variant_id or variant_id in {".", ".."} or "/" in variant_id or "\\\\" in variant_id:
+        raise HTTPException(status_code=400, detail="잘못된 variant_id")
+    variant_dir = (DATA_ROOT / variant_id).resolve()
+    parsed = parse_variant_folder(variant_id)
+    if variant_dir.parent != DATA_ROOT or not variant_dir.is_dir() or not parsed:
         raise HTTPException(status_code=404, detail=ADMIN_MESSAGE)
-    pors = exact_por_children(product_dir)
-    if len(pors) != 1:
-        raise HTTPException(status_code=409, detail=ADMIN_MESSAGE)
-    por = pors[0]
-    valid, files = is_valid_por(por)
+    valid, files = is_valid_variant(variant_dir)
     if not valid:
         raise HTTPException(status_code=409, detail=ADMIN_MESSAGE)
-    return por, files
+    return variant_dir, files, parsed
 
 
 @app.get("/api/health")
@@ -214,13 +219,16 @@ def health():
 def products():
     if not DATA_ROOT.is_dir():
         raise HTTPException(status_code=500, detail=f"SIP_DATA_ROOT 경로를 찾을 수 없습니다: {DATA_ROOT}")
-    result = [product_summary(p) for p in sorted(DATA_ROOT.iterdir()) if p.is_dir()]
+    result = []
+    for folder in sorted(DATA_ROOT.iterdir()):
+        if folder.is_dir() and parse_variant_folder(folder.name):
+            result.append(variant_summary(folder))
     return {"products": result, "admin_message": ADMIN_MESSAGE}
 
 
-@app.get("/api/products/{product_id}/results")
-def product_results(product_id: str):
-    por, files = get_product_por(product_id)
+@app.get("/api/products/{variant_id}/results")
+def product_results(variant_id: str):
+    variant_dir, files, parsed = get_variant(variant_id)
     results = []
     for txt in files[".txt"]:
         headers, rows = parse_delimited_table(safe_read_text(txt))
@@ -228,31 +236,38 @@ def product_results(product_id: str):
             "file_name": txt.name, "headers": headers,
             "groups": group_part_rows(headers, rows), "row_count": len(rows),
         })
+    parameters = []
+    for py_file in files[".py"]:
+        parameters.append({
+            "file_name": py_file.name,
+            "parameters": extract_parameter_candidates(safe_read_text(py_file)),
+        })
     return {
-        "product_id": product_id,
-        "por_id": str(por.relative_to(DATA_ROOT)),
+        **parsed,
+        "folder": variant_dir.name,
         "results": results,
+        "parameters": parameters,
         "files": {ext[1:]: [p.name for p in paths] for ext, paths in files.items()},
     }
 
 
-@app.get("/api/products/{product_id}/parameters")
-def product_parameters(product_id: str):
-    por, files = get_product_por(product_id)
+@app.get("/api/products/{variant_id}/parameters")
+def product_parameters(variant_id: str):
+    variant_dir, files, parsed = get_variant(variant_id)
     output = []
     for py_file in files[".py"]:
         output.append({
             "file_name": py_file.name,
             "parameters": extract_parameter_candidates(safe_read_text(py_file)),
         })
-    return {"product_id": product_id, "files": output}
+    return {**parsed, "folder": variant_dir.name, "files": output}
 
 
-@app.get("/api/products/{product_id}/file-status")
-def product_file_status(product_id: str):
-    por, files = get_product_por(product_id)
+@app.get("/api/products/{variant_id}/file-status")
+def product_file_status(variant_id: str):
+    variant_dir, files, parsed = get_variant(variant_id)
     return {
-        "product_id": product_id, "por_id": str(por.relative_to(DATA_ROOT)),
+        **parsed, "folder": variant_dir.name,
         "mesh": {
             "files": [p.name for p in files[".inp"]],
             "status": "파일 확인 완료; 실제 3D mesh 변환/렌더링은 후속 구현 필요",
