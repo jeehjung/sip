@@ -39,7 +39,17 @@ SIP_DATA_ROOT/
 - 여러 조건의 결과를 한 그래프에서 비교하고 CSV로 내보내기
 - 그래프 아래에 비교 조건별 .py 입력 파라미터를 나란히 표시
 - FastAPI를 통한 NAS/UNC 경로 연동
-- .inp 파일 존재 확인 및 .odb의 U3 추출 상태 표시(실제 mesh 렌더링 및 ODB 추출은 후속 구현)
+- Abaqus/CAE Python API로 INP를 읽고 Part별 색상으로 3D 메시 렌더링 (회전/확대/축소)
+- .odb의 U3 추출 상태 표시 (실제 ODB 추출은 후속 구현)
+
+## Abaqus 서버 설정
+
+- Windows 서버에 Abaqus/CAE와 유효한 라이선스가 설치되어 있어야 합니다.
+- `ABAQUS_COMMAND` 환경변수에 Abaqus 실행 명령 또는 `abaqus.bat`의 전체 경로를 지정할 수 있습니다. 기본값은 `abaqus`입니다.
+- `SIP_ABAQUS_TIMEOUT`은 메시 변환 제한 시간(초)이며 기본값은 300입니다.
+- 웹 서버 프로세스 계정이 데이터 NAS 경로와 Abaqus 실행 환경에 접근할 수 있어야 합니다.
+- 첫 변환은 Abaqus 실행 시간이 필요하며, 같은 INP 파일의 결과는 파일 수정 시간/크기 기준으로 메모리 캐시됩니다.
+- 웹 서버에서 외부 CDN을 차단하는 환경이라면 Three.js 스크립트를 사내 정적 파일로 제공하도록 바꿔야 합니다.
 
 ## 실행
 
@@ -60,12 +70,13 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 - GET /api/products/{variant_id}/results: 해당 조건 폴더의 TXT 결과 및 PY 파라미터
 - GET /api/products/{variant_id}/parameters: 해당 조건 폴더의 PY 파라미터
 - GET /api/products/{variant_id}/file-status: INP/ODB 파일 상태
+- GET /api/products/{variant_id}/mesh?file_name=<INP 파일명>: Abaqus/CAE Python API를 호출해 Part별 삼각형 표면 및 메시 edge를 JSON으로 생성
 
 ## 파일별 역할 / 제한
 
 - TXT: 결과 테이블 및 XY 비교
 - PY: 정적 파싱만 수행하며 임의 스크립트를 실행하지 않습니다.
-- INP: 현재는 파일의 존재/목록만 확인합니다. 실제 3D mesh 변환/렌더링은 후속 구현입니다.
+- INP: `abaqus_export_mesh.py`를 Abaqus/CAE Python으로 실행해 `ModelFromInputFile` API로 읽습니다. Part별 경계면과 요소 edge를 내보내고 웹의 Three.js가 Part마다 고유 색상으로 렌더링합니다. 지원 요소 타입 외의 형상은 일부 누락될 수 있습니다.
 - ODB: 현재는 파일의 존재/목록만 확인합니다. Abaqus Python/OdbAccess 기반 U3 추출은 후속 구현입니다.
 - 이 버전은 Abaqus 해석을 실행하지 않습니다.
 
