@@ -198,7 +198,7 @@ def variant_summary(variant_dir: Path) -> dict[str, Any]:
 
 
 def get_variant(variant_id: str) -> tuple[Path, dict[str, list[Path]], dict[str, Any]]:
-    if not variant_id or variant_id in {".", ".."} or "/" in variant_id or "\\\\" in variant_id:
+    if not variant_id or variant_id in {".", ".."} or "/" in variant_id or "\\" in variant_id:
         raise HTTPException(status_code=400, detail="잘못된 variant_id")
     variant_dir = (DATA_ROOT / variant_id).resolve()
     parsed = parse_variant_folder(variant_id)
