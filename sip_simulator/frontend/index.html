@@ -73,7 +73,7 @@ async function loadVariant(){
  const v=variants.find(item=>item.variant_id===selectedVariant);
  activeData=null;
  if(!v){$('selectedInfo').textContent='선택 가능한 HBM 조건이 없습니다.';$('files').innerHTML='';$('results').innerHTML='<div class="empty">조건 폴더를 찾을 수 없습니다.</div>';return;}
- if(!v.available){$('selectedInfo').innerHTML='<div class="error">'+esc(v.message||ADMIN)+'<div class="meta">'+esc(v.reason||'')+'</div></div>';return;}
+ if(!v.available){$('selectedInfo').innerHTML='<div class="error">'+esc(v.message||ADMIN)+'<div class="meta">'+esc(v.reason||'')+'</div></div>';$('files').innerHTML='';$('results').innerHTML='<div class="empty">필수 파일이 없어 결과를 표시할 수 없습니다.</div>';return;}
  $('selectedInfo').textContent=v.product_id+' · '+v.hbm_gen+' · '+v.stack+(v.is_por?' · POR':'')+' · '+v.variant_id+(v.hbm_warning?' · 경고: '+v.hbm_warning:'');
  try{
   const d=await api('/api/products/'+encodeURIComponent(v.variant_id)+'/results');
