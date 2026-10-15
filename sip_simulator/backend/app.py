@@ -4,6 +4,10 @@ import csv
 import io
 import os
 import re
+import json
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 ADMIN_MESSAGE = "관리자 (jeeh.jung@samsung.com)에게 문의하세요."
 DATA_ROOT = Path(os.environ.get("SIP_DATA_ROOT", "./sample_data")).resolve()
-app = FastAPI(title="SiP Simulator API", version="0.1.0")
+app = FastAPI(title="SiP Simulator API", version="0.2.0")
+_MESH_CACHE: dict[tuple[str, int, int], dict[str, Any]] = {}
 
 # TODO: Restrict this to the trusted UI host before an internal production deployment.
 app.add_middleware(
@@ -262,6 +267,66 @@ def product_parameters(variant_id: str):
         })
     return {**parsed, "folder": variant_dir.name, "files": output}
 
+
+
+@app.get("/api/products/{variant_id}/mesh")
+def product_mesh(variant_id: str, file_name: str):
+    """Export INP mesh with Abaqus/CAE Python, cached by file modification time."""
+    variant_dir, files, parsed = get_variant(variant_id)
+    if file_name not in {p.name for p in files[".inp"]}:
+        raise HTTPException(status_code=404, detail="선택한 INP 파일을 찾을 수 없습니다.")
+    inp_path = (variant_dir / file_name).resolve()
+    if inp_path.parent != variant_dir.resolve():
+        raise HTTPException(status_code=400, detail="잘못된 INP 파일 경로")
+    stat = inp_path.stat()
+    cache_key = (str(inp_path), stat.st_mtime_ns, stat.st_size)
+    cached = _MESH_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    exporter = Path(__file__).with_name("abaqus_export_mesh.py").resolve()
+    if not exporter.is_file():
+        raise HTTPException(status_code=500, detail="Abaqus mesh exporter 파일이 없습니다.")
+    abaqus_command = os.environ.get("ABAQUS_COMMAND", "abaqus").strip()
+    timeout = int(os.environ.get("SIP_ABAQUS_TIMEOUT", "300"))
+    try:
+        with tempfile.TemporaryDirectory(prefix="sip_mesh_") as temp_dir:
+            output_path = Path(temp_dir) / "mesh.json"
+            args = [abaqus_command, "cae", "noGUI=" + str(exporter), "--", str(inp_path), str(output_path)]
+            if os.name == "nt":
+                completed = subprocess.run(
+                    subprocess.list2cmdline(args), shell=True, cwd=str(variant_dir),
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=timeout,
+                )
+            else:
+                completed = subprocess.run(
+                    args, shell=False, cwd=str(variant_dir),
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=timeout,
+                )
+            if completed.returncode != 0:
+                detail = (completed.stdout or "")[-4000:]
+                raise RuntimeError("Abaqus mesh export failed. " + detail)
+            if not output_path.is_file():
+                raise RuntimeError("Abaqus가 mesh.json을 생성하지 않았습니다. " + (completed.stdout or "")[-2000:])
+            with output_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail=f"Abaqus mesh export가 {timeout}초 내에 완료되지 않았습니다.")
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Abaqus 모델 변환 실패. ABAQUS_COMMAND와 라이선스/설치 상태를 확인하세요. " + str(exc)[:1500],
+        )
+    data.update({
+        "variant_id": variant_id,
+        "file_name": file_name,
+        "source": "Abaqus/CAE Python API",
+    })
+    _MESH_CACHE.clear()
+    _MESH_CACHE[cache_key] = data
+    return data
 
 @app.get("/api/products/{variant_id}/file-status")
 def product_file_status(variant_id: str):
